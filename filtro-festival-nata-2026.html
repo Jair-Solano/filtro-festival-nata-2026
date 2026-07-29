@@ -115,6 +115,27 @@
     margin-top: 14px;
     max-width: 340px;
   }
+  .progress-bar {
+    position: relative;
+    width: 100%;
+    height: 14px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.12);
+    overflow: hidden;
+    margin-top: 12px;
+  }
+  .progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #f7e7b0, #c99a3e);
+    transition: width 0.2s ease;
+  }
+  .progress-label {
+    margin-top: 6px;
+    font-size: 0.78rem;
+    color: #e8d8a7;
+    text-align: center;
+  }
   .hidden { display: none; }
 </style>
 </head>
@@ -155,16 +176,17 @@
   </div>
 </div>
 
-<p class="hint">La imagen se descarga en alta calidad con el filtro ya aplicado. El PNG transparente solo incluye el marco para que puedas usarlo en videos o ediciones.</p>
+<p class="hint">La imagen se descarga en alta calidad con el filtro ya aplicado. El PNG transparente solo incluye el filtro para que puedas usarlo en ediciones.</p>
+<div class="progress-bar hidden" id="downloadProgress">
+  <div class="progress-fill" id="progressFill"></div>
+</div>
+<div class="progress-label hidden" id="progressLabel">Preparando descarga...</div>
 <div id="externalHint" class="hint hidden">Esta página se abrió dentro de una app. Ábrela en el navegador para que funcione correctamente.</div>
 
 <script>
-const frameSvg = `
-<svg xmlns="http://www.w3.org/2000/svg" width="945" height="1680" viewBox="0 0 945 1680">
-  <rect x="40" y="40" width="865" height="1600" fill="none" stroke="#f5e6c8" stroke-width="10" rx="40" ry="40" opacity="0.95"/>
-</svg>`;
-const frameImg = new Image();
-frameImg.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(frameSvg);
+const filterImg = new Image();
+let filterLoaded = false;
+filterImg.src = 'filter.png';
 
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
@@ -214,7 +236,9 @@ function drawScene(img, targetCtx) {
   const dx = (PREVIEW_W - drawW) / 2 + photoTransform.x;
   const dy = (PREVIEW_H - drawH) / 2 + photoTransform.y;
   targetCtx.drawImage(img, dx, dy, drawW, drawH);
-  targetCtx.drawImage(frameImg, 0, 0, PREVIEW_W, PREVIEW_H);
+  if (filterImg.complete && filterImg.naturalWidth) {
+    targetCtx.drawImage(filterImg, 0, 0, PREVIEW_W, PREVIEW_H);
+  }
 }
 
 function renderPreview() {
@@ -224,9 +248,32 @@ function renderPreview() {
   placeholder.style.display = 'none';
 }
 
+function showProgress(text, percent) {
+  const progressBar = document.getElementById('downloadProgress');
+  const progressFill = document.getElementById('progressFill');
+  const progressLabel = document.getElementById('progressLabel');
+  if (!progressBar || !progressFill || !progressLabel) return;
+  progressLabel.textContent = text;
+  progressFill.style.width = `${percent}%`;
+  progressBar.classList.remove('hidden');
+  progressLabel.classList.remove('hidden');
+}
+
+function hideProgress() {
+  const progressBar = document.getElementById('downloadProgress');
+  const progressLabel = document.getElementById('progressLabel');
+  if (!progressBar || !progressLabel) return;
+  progressBar.classList.add('hidden');
+  progressLabel.classList.add('hidden');
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function updateButtons() {
-  const enabled = !!currentImage;
-  btnReset.disabled = !enabled;
+  const enabled = !!currentImage && filterLoaded;
+  btnReset.disabled = !currentImage;
   btnDownload.disabled = !enabled;
   btnDownloadTransparent.disabled = !enabled;
 }
@@ -238,13 +285,13 @@ function resetTransform() {
 }
 
 function exportScene(includePhoto) {
-  if (!currentImage && !includePhoto) return;
   const { width, height } = getExportDimensions();
   const exportCanvas = document.createElement('canvas');
   exportCanvas.width = width * DPR;
   exportCanvas.height = height * DPR;
   const exportCtx = exportCanvas.getContext('2d');
   exportCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
+
   if (includePhoto) {
     const previewCanvas = document.createElement('canvas');
     previewCanvas.width = PREVIEW_W;
@@ -253,17 +300,34 @@ function exportScene(includePhoto) {
     drawScene(currentImage, previewCtx);
     exportCtx.drawImage(previewCanvas, 0, 0, width, height);
   }
-  exportCtx.drawImage(frameImg, 0, 0, width, height);
+
+  if (!filterImg.complete || !filterImg.naturalWidth) return;
+  exportCtx.drawImage(filterImg, 0, 0, width, height);
   return exportCanvas;
 }
 
-function downloadImage(includePhoto, filename) {
+async function downloadImage(includePhoto, filename) {
+  showProgress('Preparando descarga...', 12);
+  await wait(60);
+  showProgress('Creando imagen con filtro...', 45);
+  await wait(80);
+
   const exportCanvas = exportScene(includePhoto);
-  if (!exportCanvas) return;
+  if (!exportCanvas) {
+    hideProgress();
+    return;
+  }
+
+  showProgress('Generando archivo...', 78);
+  await wait(80);
+
   const link = document.createElement('a');
   link.download = filename;
   link.href = exportCanvas.toDataURL('image/png');
   link.click();
+
+  showProgress('Descarga iniciada', 100);
+  setTimeout(hideProgress, 600);
 }
 
 fileInput.addEventListener('change', (event) => {
@@ -281,6 +345,16 @@ fileInput.addEventListener('change', (event) => {
   };
   reader.readAsDataURL(file);
 });
+
+filterImg.onload = () => {
+  filterLoaded = true;
+  updateButtons();
+  if (currentImage) renderPreview();
+};
+
+filterImg.onerror = () => {
+  console.warn('No se pudo cargar la imagen del filtro: filter.png');
+};
 
 btnReset.addEventListener('click', () => resetTransform());
 btnDownload.addEventListener('click', () => downloadImage(true, 'festival-costumbres-tradiciones-nata-2026.png'));
@@ -366,7 +440,7 @@ canvas.addEventListener('pointercancel', () => {
   pinchState = null;
 });
 
-frameImg.onload = () => {
+filterImg.onload = () => {
   if (currentImage) renderPreview();
 };
 
