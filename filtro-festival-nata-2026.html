@@ -241,9 +241,19 @@ function drawScene(img, targetCtx) {
   }
 }
 
+function drawOverlay(targetCtx) {
+  targetCtx.clearRect(0, 0, PREVIEW_W, PREVIEW_H);
+  if (filterImg.complete && filterImg.naturalWidth) {
+    targetCtx.drawImage(filterImg, 0, 0, PREVIEW_W, PREVIEW_H);
+  }
+}
+
 function renderPreview() {
-  if (!currentImage) return;
-  drawScene(currentImage, ctx);
+  if (currentImage) {
+    drawScene(currentImage, ctx);
+  } else {
+    drawOverlay(ctx);
+  }
   canvas.style.display = 'block';
   placeholder.style.display = 'none';
 }
@@ -272,10 +282,9 @@ function wait(ms) {
 }
 
 function updateButtons() {
-  const enabled = !!currentImage && filterLoaded;
   btnReset.disabled = !currentImage;
-  btnDownload.disabled = !enabled;
-  btnDownloadTransparent.disabled = !enabled;
+  btnDownload.disabled = !currentImage || !filterLoaded;
+  btnDownloadTransparent.disabled = !filterLoaded;
 }
 
 function resetTransform() {
@@ -285,6 +294,7 @@ function resetTransform() {
 }
 
 function exportScene(includePhoto) {
+  if (!currentImage && includePhoto) return;
   const { width, height } = getExportDimensions();
   const exportCanvas = document.createElement('canvas');
   exportCanvas.width = width * DPR;
@@ -349,7 +359,7 @@ fileInput.addEventListener('change', (event) => {
 filterImg.onload = () => {
   filterLoaded = true;
   updateButtons();
-  if (currentImage) renderPreview();
+  renderPreview();
 };
 
 filterImg.onerror = () => {
