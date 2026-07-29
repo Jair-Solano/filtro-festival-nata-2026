@@ -61,7 +61,6 @@
     color: #a08a5c;
     font-size: 0.95rem;
   }
-  video { display: none; }
   .controls {
     width: min(92vw, 340px);
     margin-top: 18px;
@@ -116,139 +115,120 @@
     margin-top: 14px;
     max-width: 340px;
   }
+  .hidden { display: none; }
 </style>
 </head>
 <body>
 <h1>II Festival de Costumbres y Tradiciones</h1>
-<p class="sub">Natá 2026 &mdash; toma o sube tu foto y descárgala lista para tu Historia de Instagram</p>
+<p class="sub">Natá 2026 &mdash; sube tu foto y descarga la versión con filtro en alta calidad.</p>
 
 <div class="stage">
-  <div id="placeholder">Toca "Usar cámara" o "Subir foto" para comenzar</div>
-  <video id="video" autoplay playsinline muted></video>
+  <div id="placeholder">Toca "Subir foto" para comenzar</div>
   <canvas id="canvas"></canvas>
 </div>
 
 <div class="controls">
   <div class="row">
-    <button id="btnCam" class="primary">📷 Usar cámara</button>
-    <label class="btn" for="fileInput">🖼️ Subir foto</label>
+    <label class="btn primary" for="fileInput">🖼️ Subir foto</label>
     <input type="file" id="fileInput" accept="image/*">
   </div>
   <div class="row">
-    <button id="btnShoot" disabled>Capturar foto</button>
-    <button id="btnSwitch" disabled>Cambiar cámara</button>
-  </div>
-  <div class="row">
     <label class="control">
-      <span>Calidad</span>
-      <select id="qualitySelect">
-        <option value="high">Alta</option>
-        <option value="medium">Media</option>
-        <option value="low">Baja</option>
+      <span>Tamaño de descarga</span>
+      <select id="sizeSelect">
+        <option value="1080">1080p</option>
+        <option value="2160">2K</option>
+        <option value="3840" selected>4K</option>
       </select>
     </label>
     <label class="control">
-      <span>Zoom / lente</span>
-      <input id="zoomSlider" type="range" min="0.8" max="2.8" step="0.1" value="1">
+      <span>Zoom / ajuste</span>
+      <input id="zoomSlider" type="range" min="0.6" max="2.5" step="0.05" value="1">
     </label>
   </div>
   <div class="row">
     <button id="btnReset" disabled>↺ Reiniciar ajuste</button>
-    <button id="btnRecord" disabled>🎥 Grabar video</button>
   </div>
   <div class="row">
-    <button id="btnDownload" class="primary" disabled>⬇️ PNG final</button>
-    <button id="btnDownloadTransparent" disabled>⬇️ PNG sin fondo</button>
+    <button id="btnDownload" class="primary" disabled>⬇️ Descargar imagen con filtro</button>
+    <button id="btnDownloadTransparent" disabled>⬇️ Descargar filtro PNG</button>
   </div>
 </div>
 
-<p class="hint">Arrastra la foto dentro del encuadre, ajusta el zoom y la calidad de cámara. Puedes descargar la imagen en PNG transparente o grabar un video con el filtro aplicado.</p>
+<p class="hint">La imagen se descarga en alta calidad con el filtro ya aplicado. El PNG transparente solo incluye el marco para que puedas usarlo en videos o ediciones.</p>
+<div id="externalHint" class="hint hidden">Esta página se abrió dentro de una app. Ábrela en el navegador para que funcione correctamente.</div>
 
 <script>
 const frameSvg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="945" height="1680" viewBox="0 0 945 1680">
-  <rect width="945" height="1680" fill="none"/>
-  <path d="M78 80h789v1520H78z" fill="none" stroke="#f5e6c8" stroke-width="8" stroke-linejoin="round"/>
-  <path d="M141 143h663v1394H141z" fill="none" stroke="#c99a3e" stroke-width="6" stroke-linejoin="round" opacity="0.95"/>
-  <circle cx="472" cy="840" r="290" fill="none" stroke="#c99a3e" stroke-width="4" opacity="0.8"/>
-  <path d="M472 564c-152 0-275 123-275 275 0 152 123 275 275 275 152 0 275-123 275-275 0-152-123-275-275-275Z" fill="none" stroke="#f5e6c8" stroke-width="4" opacity="0.65"/>
-  <path d="M214 1420h516" stroke="#f5e6c8" stroke-width="4" stroke-linecap="round" opacity="0.7"/>
-  <path d="M293 1267h350" stroke="#c99a3e" stroke-width="4" stroke-linecap="round" opacity="0.8"/>
-  <path d="M283 1533h379" stroke="#f5e6c8" stroke-width="4" stroke-linecap="round" opacity="0.6"/>
+  <rect x="40" y="40" width="865" height="1600" fill="none" stroke="#f5e6c8" stroke-width="10" rx="40" ry="40" opacity="0.95"/>
 </svg>`;
 const frameImg = new Image();
 frameImg.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(frameSvg);
 
-const video = document.getElementById('video');
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 const placeholder = document.getElementById('placeholder');
-const btnCam = document.getElementById('btnCam');
-const btnShoot = document.getElementById('btnShoot');
-const btnSwitch = document.getElementById('btnSwitch');
+const fileInput = document.getElementById('fileInput');
+const sizeSelect = document.getElementById('sizeSelect');
+const zoomSlider = document.getElementById('zoomSlider');
+const btnReset = document.getElementById('btnReset');
 const btnDownload = document.getElementById('btnDownload');
 const btnDownloadTransparent = document.getElementById('btnDownloadTransparent');
-const btnReset = document.getElementById('btnReset');
-const btnRecord = document.getElementById('btnRecord');
-const fileInput = document.getElementById('fileInput');
-const qualitySelect = document.getElementById('qualitySelect');
-const zoomSlider = document.getElementById('zoomSlider');
+const externalHint = document.getElementById('externalHint');
 
-const OUT_W = 945, OUT_H = 1680;
+const PREVIEW_W = 945;
+const PREVIEW_H = 1680;
 const DPR = Math.min(2, window.devicePixelRatio || 1);
-canvas.width = OUT_W * DPR;
-canvas.height = OUT_H * DPR;
+canvas.width = PREVIEW_W * DPR;
+canvas.height = PREVIEW_H * DPR;
 ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 ctx.imageSmoothingEnabled = true;
 
-let stream = null;
-let facingMode = 'user';
-let mode = null;
-let currentSource = null;
-let rafId = null;
+let currentImage = null;
 let photoTransform = { scale: 1, x: 0, y: 0 };
 let pointers = new Map();
 let dragState = null;
 let pinchState = null;
-let mediaRecorder = null;
-let recordingChunks = [];
-let recordStream = null;
 
-function getSourceSize(source) {
-  const iw = source.videoWidth || source.width || OUT_W;
-  const ih = source.videoHeight || source.height || OUT_H;
-  return { iw, ih };
+function getExportDimensions() {
+  const height = parseInt(sizeSelect.value, 10);
+  const width = Math.round(height * 9 / 16);
+  return { width, height };
 }
 
-function drawScene(source, targetCtx = ctx) {
-  if (!source) return;
-  targetCtx.clearRect(0, 0, OUT_W, OUT_H);
-  const { iw, ih } = getSourceSize(source);
-  const baseScale = Math.max(OUT_W / iw, OUT_H / ih);
-  const effectiveScale = baseScale * photoTransform.scale;
-  const scaledW = iw * effectiveScale;
-  const scaledH = ih * effectiveScale;
-  const dx = (OUT_W - scaledW) / 2 + photoTransform.x;
-  const dy = (OUT_H - scaledH) / 2 + photoTransform.y;
-  targetCtx.drawImage(source, dx, dy, scaledW, scaledH);
-  targetCtx.drawImage(frameImg, 0, 0, OUT_W, OUT_H);
+function getSourceSize(img) {
+  return {
+    width: img.naturalWidth || img.width || PREVIEW_W,
+    height: img.naturalHeight || img.height || PREVIEW_H
+  };
+}
+
+function drawScene(img, targetCtx) {
+  targetCtx.clearRect(0, 0, PREVIEW_W, PREVIEW_H);
+  const { width: iw, height: ih } = getSourceSize(img);
+  const baseScale = Math.max(PREVIEW_W / iw, PREVIEW_H / ih);
+  const scale = baseScale * photoTransform.scale;
+  const drawW = iw * scale;
+  const drawH = ih * scale;
+  const dx = (PREVIEW_W - drawW) / 2 + photoTransform.x;
+  const dy = (PREVIEW_H - drawH) / 2 + photoTransform.y;
+  targetCtx.drawImage(img, dx, dy, drawW, drawH);
+  targetCtx.drawImage(frameImg, 0, 0, PREVIEW_W, PREVIEW_H);
 }
 
 function renderPreview() {
-  if (mode === 'camera' && video.readyState >= 2) {
-    drawScene(video);
-  } else if (currentSource) {
-    drawScene(currentSource);
-  }
+  if (!currentImage) return;
+  drawScene(currentImage, ctx);
   canvas.style.display = 'block';
-  video.style.display = 'none';
+  placeholder.style.display = 'none';
 }
 
-function renderLoop() {
-  if (mode === 'camera' && video.readyState >= 2) {
-    drawScene(video);
-  }
-  rafId = requestAnimationFrame(renderLoop);
+function updateButtons() {
+  const enabled = !!currentImage;
+  btnReset.disabled = !enabled;
+  btnDownload.disabled = !enabled;
+  btnDownloadTransparent.disabled = !enabled;
 }
 
 function resetTransform() {
@@ -257,157 +237,43 @@ function resetTransform() {
   renderPreview();
 }
 
-function updateButtons() {
-  const isCamera = mode === 'camera';
-  btnShoot.disabled = !isCamera;
-  btnSwitch.disabled = !isCamera;
-  btnRecord.disabled = !isCamera;
-  btnReset.disabled = !currentSource;
-  btnDownload.disabled = !currentSource;
-  btnDownloadTransparent.disabled = !currentSource;
-}
-
-function getQualityConstraints() {
-  switch (qualitySelect.value) {
-    case 'medium':
-      return { width: { ideal: 960 }, height: { ideal: 1280 } };
-    case 'low':
-      return { width: { ideal: 720 }, height: { ideal: 960 } };
-    default:
-      return { width: { ideal: 1280 }, height: { ideal: 1600 } };
-  }
-}
-
-async function startCamera() {
-  stopCamera();
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode, ...getQualityConstraints() },
-      audio: false
-    });
-    video.srcObject = stream;
-    await video.play();
-    mode = 'camera';
-    currentSource = video;
-    placeholder.style.display = 'none';
-    canvas.style.display = 'block';
-    video.style.display = 'none';
-    resetTransform();
-    updateButtons();
-    if (!rafId) renderLoop();
-  } catch (e) {
-    placeholder.textContent = 'No se pudo acceder a la cámara. Prueba con "Subir foto".';
-    placeholder.style.display = 'flex';
-  }
-}
-
-function stopCamera() {
-  if (rafId) {
-    cancelAnimationFrame(rafId);
-    rafId = null;
-  }
-  if (stream) {
-    stream.getTracks().forEach((track) => track.stop());
-    stream = null;
-  }
-}
-
-function exportScene(withTransparency) {
-  if (!currentSource) return;
+function exportScene(includePhoto) {
+  if (!currentImage && !includePhoto) return;
+  const { width, height } = getExportDimensions();
   const exportCanvas = document.createElement('canvas');
-  exportCanvas.width = OUT_W * DPR;
-  exportCanvas.height = OUT_H * DPR;
+  exportCanvas.width = width * DPR;
+  exportCanvas.height = height * DPR;
   const exportCtx = exportCanvas.getContext('2d');
   exportCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  if (!withTransparency) {
-    exportCtx.fillStyle = '#000';
-    exportCtx.fillRect(0, 0, OUT_W, OUT_H);
+  if (includePhoto) {
+    const previewCanvas = document.createElement('canvas');
+    previewCanvas.width = PREVIEW_W;
+    previewCanvas.height = PREVIEW_H;
+    const previewCtx = previewCanvas.getContext('2d');
+    drawScene(currentImage, previewCtx);
+    exportCtx.drawImage(previewCanvas, 0, 0, width, height);
   }
-  drawScene(currentSource || video, exportCtx);
+  exportCtx.drawImage(frameImg, 0, 0, width, height);
+  return exportCanvas;
+}
+
+function downloadImage(includePhoto, filename) {
+  const exportCanvas = exportScene(includePhoto);
+  if (!exportCanvas) return;
   const link = document.createElement('a');
-  link.download = `festival-costumbres-tradiciones-nata-2026${withTransparency ? '-transparente' : ''}.png`;
+  link.download = filename;
   link.href = exportCanvas.toDataURL('image/png');
   link.click();
 }
 
-function startRecording() {
-  if (typeof MediaRecorder === 'undefined' || !canvas.captureStream) {
-    alert('Tu navegador no admite grabación de video aquí.');
-    return;
-  }
-  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-    mediaRecorder.stop();
-    return;
-  }
-  recordStream = canvas.captureStream(30);
-  mediaRecorder = new MediaRecorder(recordStream);
-  recordingChunks = [];
-  mediaRecorder.ondataavailable = (event) => {
-    if (event.data.size) recordingChunks.push(event.data);
-  };
-  mediaRecorder.onstop = () => {
-    const blob = new Blob(recordingChunks, { type: 'video/webm' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'festival-costumbres-tradiciones-nata-2026.webm';
-    link.click();
-    URL.revokeObjectURL(url);
-    btnRecord.textContent = '🎥 Grabar video';
-    if (recordStream) {
-      recordStream.getTracks().forEach((track) => track.stop());
-      recordStream = null;
-    }
-    mediaRecorder = null;
-  };
-  mediaRecorder.start();
-  btnRecord.textContent = '⏹️ Detener';
-}
-
-btnCam.addEventListener('click', () => {
-  facingMode = 'user';
-  startCamera();
-});
-
-btnSwitch.addEventListener('click', () => {
-  facingMode = facingMode === 'user' ? 'environment' : 'user';
-  startCamera();
-});
-
-btnShoot.addEventListener('click', () => {
-  if (mode !== 'camera') return;
-  const tmp = document.createElement('canvas');
-  tmp.width = OUT_W * DPR;
-  tmp.height = OUT_H * DPR;
-  const tctx = tmp.getContext('2d');
-  tctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  drawScene(video, tctx);
-  const dataUrl = tmp.toDataURL('image/png');
-  const img = new Image();
-  img.onload = () => {
-    stopCamera();
-    mode = 'frozen';
-    currentSource = img;
-    renderPreview();
-    updateButtons();
-    btnShoot.disabled = true;
-    btnSwitch.disabled = true;
-    btnRecord.disabled = true;
-  };
-  img.src = dataUrl;
-});
-
 fileInput.addEventListener('change', (event) => {
   const file = event.target.files[0];
   if (!file) return;
-  stopCamera();
-  mode = 'upload';
   const reader = new FileReader();
   reader.onload = (ev) => {
     const img = new Image();
     img.onload = () => {
-      placeholder.style.display = 'none';
-      currentSource = img;
+      currentImage = img;
       resetTransform();
       updateButtons();
     };
@@ -416,17 +282,31 @@ fileInput.addEventListener('change', (event) => {
   reader.readAsDataURL(file);
 });
 
-btnDownload.addEventListener('click', () => exportScene(false));
-btnDownloadTransparent.addEventListener('click', () => exportScene(true));
 btnReset.addEventListener('click', () => resetTransform());
-btnRecord.addEventListener('click', () => {
-  if (mode !== 'camera') return;
-  startRecording();
-});
+btnDownload.addEventListener('click', () => downloadImage(true, 'festival-costumbres-tradiciones-nata-2026.png'));
+btnDownloadTransparent.addEventListener('click', () => downloadImage(false, 'filtro-festival-nata-2026.png'));
 
-qualitySelect.addEventListener('change', () => {
-  if (mode === 'camera') startCamera();
-});
+function isInAppBrowser() {
+  const ua = navigator.userAgent || '';
+  return /Instagram|FBAN|FBAV|FB_IAB|Line\//i.test(ua);
+}
+
+function showExternalHint() {
+  if (externalHint) {
+    externalHint.classList.remove('hidden');
+  }
+}
+
+if (isInAppBrowser()) {
+  showExternalHint();
+  setTimeout(() => {
+    try {
+      window.open(window.location.href, '_blank', 'noopener,noreferrer');
+    } catch (e) {
+      // ignore if blocked
+    }
+  }, 300);
+}
 
 zoomSlider.addEventListener('input', () => {
   photoTransform.scale = parseFloat(zoomSlider.value);
@@ -434,7 +314,7 @@ zoomSlider.addEventListener('input', () => {
 });
 
 canvas.addEventListener('pointerdown', (event) => {
-  if (!currentSource) return;
+  if (!currentImage) return;
   pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
   canvas.setPointerCapture(event.pointerId);
   if (pointers.size === 1) {
@@ -467,8 +347,8 @@ canvas.addEventListener('pointermove', (event) => {
     const [first, second] = Array.from(pointers.values());
     const distance = Math.hypot(first.x - second.x, first.y - second.y);
     if (distance > 0) {
-      photoTransform.scale = Math.min(2.8, Math.max(0.8, pinchState.scale * (distance / pinchState.distance)));
-      zoomSlider.value = photoTransform.scale.toFixed(1);
+      photoTransform.scale = Math.min(2.5, Math.max(0.6, pinchState.scale * (distance / pinchState.distance)));
+      zoomSlider.value = photoTransform.scale.toFixed(2);
       renderPreview();
     }
   }
@@ -487,11 +367,10 @@ canvas.addEventListener('pointercancel', () => {
 });
 
 frameImg.onload = () => {
-  renderPreview();
+  if (currentImage) renderPreview();
 };
 
 updateButtons();
-startCamera();
 </script>
 </body>
 </html>
